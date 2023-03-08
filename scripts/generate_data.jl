@@ -21,10 +21,15 @@ function load_next(runner::CropperRunner)
     runner.idx += 1
     runner.idx > length(runner.img_paths) && return nothing
     img = load(joinpath("./imgs", runner.img_paths[runner.idx])) .|> RGB
-    img = GLMakie.rotr90(img)
 
     @info "loaded" runner.idx runner.img_paths[runner.idx] size(img)
-    return img
+    return img, split(runner.img_paths[runner.idx], ".")[1]
+end
+
+function load_prev(runner::CropperRunner)
+    runner.idx -= 2
+    runner.idx < 1 && return nothing
+    return load_next(runner)
 end
 
 function crop(img, x, y, width)
@@ -47,13 +52,14 @@ end
 
 function crop_images(tag; width=160)
     runner = CropperRunner("./imgs")
-    img = load_next(runner)
+    img, name = load_next(runner)
 
 
-    obs_img = GLMakie.Observable(GLMakie.rotr90(img))
+    obs_img = GLMakie.Observable(rotr90(img))
     scene = GLMakie.Scene(camera=GLMakie.campixel!, resolution=reverse(size(img)))
     GLMakie.image!(scene, obs_img)
     display(scene)
+    clicked = 0
 
     on(events(scene).mousebutton, priority = 0) do event
         if event.button == Mouse.left &&  event.action == Mouse.press
@@ -61,21 +67,35 @@ function crop_images(tag; width=160)
                 cropped = crop(img, x, y, width)
         
                 isnothing(cropped) || begin
-                    save("./imgs/$tag/$name.png", cropped)
-                    @info "saved" tag name size(cropped)
+                    save("./imgs/$tag/$(name)_$clicked.png", cropped)
+                    @info "saved" "$tag/$(name)_$clicked.png" size(cropped)
+                    clicked += 1
                 end
         end
-        if event.button == Mouse.right &&  event.action == Mouse.press
-            img = load_next(runner)
-            isnothing(img) && return Consume(false)
-            obs_img[] = img
+    end
+
+    on(events(scene).keyboardbutton) do event
+        if event.action in (Keyboard.press, )
+            if event.key == Keyboard.right
+                img, name = load_next(runner)
+                clicked = 0
+                isnothing(img) && return Consume(false)
+                obs_img[] = rotr90(img)
+            elseif event.key == Keyboard.left
+                img, name = load_prev(runner)
+                clicked = 0
+                isnothing(img) && return Consume(false)
+                obs_img[] = rotr90(img)
+            end
         end
        return Consume(false)
-   end
+    end
+
+    nothing
 end
 
 # ------------------------------------ run ----------------------------------- #
 # save_camera_frames("./imgs", 20)
 
-tag = "face"
-crop_images(tag)    
+tag = "null"
+crop_images(tag; width=40)    

@@ -25,7 +25,7 @@ function stream_video()
 end
 
 function save_camera_frames(dest::String, N::Int; scale=1)
-    @info "saving camera frames" dest tag N
+    @info "saving camera frames" dest N
     cam = camera_warmup()
     sleep(0.5)
     try
