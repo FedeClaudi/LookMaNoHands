@@ -1,26 +1,25 @@
-using LookMaNoHands, GLMakie, Images
-using GLMakie.GLFW
-using GLMakie: to_native
-using Term.Prompts
+using GLMakie
 
-
-# TODO make the cropper work and save a bunch of Images
-# TODO train face recognition model and get face location + fit oval?
+# ---------------------------------------------------------------------------- #
+#                                 CropperRunner                                #
+# ---------------------------------------------------------------------------- #
 
 mutable struct CropperRunner
+    fld::String
     img_paths::Vector{String}
     idx::Int
 end
 
 function CropperRunner(folder)
+    folder = joinpath("./imgs", folder)
     img_paths = filter(f -> !isdir(f), readdir(folder))
-    CropperRunner(img_paths, 0)
+    CropperRunner(folder, img_paths, 0)
 end
 
 function load_next(runner::CropperRunner)
     runner.idx += 1
     runner.idx > length(runner.img_paths) && return nothing
-    img = load(joinpath("./imgs", runner.img_paths[runner.idx])) .|> RGB
+    img = load(joinpath(runner.fld, runner.img_paths[runner.idx])) .|> RGB
 
     @info "loaded" runner.idx runner.img_paths[runner.idx] size(img)
     return img, split(runner.img_paths[runner.idx], ".")[1]
@@ -32,6 +31,10 @@ function load_prev(runner::CropperRunner)
     return load_next(runner)
 end
 
+# ---------------------------------------------------------------------------- #
+#                                DATA GENERATION                               #
+# ---------------------------------------------------------------------------- #
+
 function crop(img, x, y, width)
     y = size(img, 1) - y
                 
@@ -42,7 +45,7 @@ function crop(img, x, y, width)
     @debug "clicked" size(img) x y x0 y0 x1 y1
 
     if x0<1 || y0<1 || x1>size(img, 2) || y1>size(img, 1)
-        @warn "out of bounds"
+        @warn "out of bounds" x0 y0 x1 y1 size(img)
         return nothing
     end
 
@@ -50,8 +53,8 @@ function crop(img, x, y, width)
 end
 
 
-function crop_images(tag; width=160)
-    runner = CropperRunner("./imgs")
+function crop_images(tag; base_fld="", width=160)
+    runner = CropperRunner(base_fld)
     img, name = load_next(runner)
 
 
@@ -67,8 +70,9 @@ function crop_images(tag; width=160)
                 cropped = crop(img, x, y, width)
         
                 isnothing(cropped) || begin
-                    save("./imgs/$tag/$(name)_$clicked.png", cropped)
-                    @info "saved" "$tag/$(name)_$clicked.png" size(cropped)
+                    savepath = joinpath(runner.fld, tag, "$(name)_$clicked.png")
+                    save(savepath, cropped)
+                    @info "saved" savepath size(cropped)
                     clicked += 1
                 end
         end
@@ -94,8 +98,3 @@ function crop_images(tag; width=160)
     nothing
 end
 
-# ------------------------------------ run ----------------------------------- #
-# save_camera_frames("./imgs", 20)
-
-tag = "null"
-crop_images(tag; width=40)    
