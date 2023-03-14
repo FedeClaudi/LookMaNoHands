@@ -1,11 +1,20 @@
 function snap(cam)
-    img = imresize(read(cam), img_size)
-    return img 
+    # img = imresize(read(cam), img_size)
+    return read(cam)
+    # return img 
+end
+
+function snap()
+    cam = camera_warmup()
+    img = snap(cam)
+    close(cam)
+    return img
 end
 
 function camera_warmup()
     cam = VideoIO.opencamera()
-    snap(cam) # to make sure it works
+    img = read(cam) # to make sure it works
+    @info "Camera warmed up" typeof(cam) size(img)
     return cam
 end
 
