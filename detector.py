@@ -22,7 +22,11 @@ class Tracker:
     def __init__(self, eye_th = 40, debug=True, avg_eye_pos=2, sensitivity=3):
         self.eye_th = eye_th
         self.face_detector = dlib.get_frontal_face_detector()
-        self.shape_predictor = dlib.shape_predictor('shape_68.dat')
+        try:
+            self.shape_predictor = dlib.shape_predictor('shape_68.dat')
+        except:
+            print("shape_68.dat not found. Download it from: https://github.com/davisking/dlib-models/blob/master/shape_predictor_68_face_landmarks.dat.bz2")
+            exit()
 
         self.debug = debug
         self.sensitivity = sensitivity
