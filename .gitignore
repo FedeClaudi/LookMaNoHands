@@ -1,6 +1,7 @@
 imgs
 
 shape_68.dat
+*.dat
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
