@@ -6,16 +6,16 @@ import control
 def main():
     # create window centered on the screen
     cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
-    cv2.moveWindow('frame', 0, 500)
+    cv2.moveWindow('frame', 100, 0)
 
     tracker = vision.Tracker()
-    controller = control.Controller()
+    controller = control.Controller(gain=100_000, T=3)
     while True:
         frame = tracker()
         controller.apply_controls(tracker)
 
         cv2.imshow('frame', frame)
-        if cv2.waitKey(5) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
     tracker.cap.release()
 
