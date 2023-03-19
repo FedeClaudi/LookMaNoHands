@@ -15,6 +15,7 @@ Term = "22787eb5-b846-44ae-b979-8e399b8463ab"
 VideoIO = "d6d074c3-1acf-5d4c-9a43-ef38773959a2"
 
 [compat]
+LIBSVM = "0.8"
 julia = "1"
 
 [extras]
