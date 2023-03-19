@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import time
 from collections import namedtuple
+import pyautogui
 
 mp_face_mesh = mp.solutions.face_mesh
 
@@ -10,6 +11,9 @@ mp_face_mesh = mp.solutions.face_mesh
 # from: https://medium.com/mlearning-ai/iris-segmentation-mediapipe-python-a4deb711aae3
 LEFT_IRIS = [474,475, 476, 477]
 RIGHT_IRIS = [469, 470, 471, 472]
+
+RIGHT_PUPIL = 473
+LEFT_PUPIL = 468
 
 # Left eye indices list
 LEFT_EYE =[ 362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385,384, 398 ]# Right eye indices list
@@ -21,16 +25,41 @@ RIGHT_CORNERS = _eye_corners(133, 33)
 
 N_LANDMARKS = 478
 
-def get_iris_position(iris_points, eye_points):
-    # get the iris position "within" the eye as values between -1 and 1
+FACE_LEFT = [21, 102, 127]
+FACE_RIGHT = [251, 389, 356]
 
-    eye_center = np.mean(eye_points, axis=0)
-    iris_center = np.mean(iris_points, axis=0)
-    delta = iris_center - eye_center
+screen_w, screen_h = pyautogui.size()
+screen_center = (screen_w / 2, screen_h / 2)
 
-    # normalize based on eye width
-    eye_width = np.linalg.norm(eye_points[0] - eye_points[3])
-    return delta / eye_width
+GAIN = 250
+
+def get_iris_position(mesh, side, z=40, d=2):
+    if side == "left":
+        iris_points = mesh[[*LEFT_IRIS, LEFT_PUPIL]]
+        eye_points = mesh[LEFT_EYE]
+        (Ax, Ay), (Bx, By) = mesh[LEFT_CORNERS.outer], mesh[LEFT_CORNERS.inner]
+    else:   
+        iris_points = mesh[[*RIGHT_IRIS, RIGHT_PUPIL]]
+        eye_points = mesh[RIGHT_EYE]
+        (Ax, Ay), (Bx, By) = mesh[RIGHT_CORNERS.inner], mesh[RIGHT_CORNERS.outer]
+
+
+    # get the face extremities
+    (flx, fly) = np.mean(mesh[FACE_LEFT], axis=0)
+    (frx, fry) = np.mean(mesh[FACE_RIGHT], axis=0)
+
+    # get the eye center
+    (ex, ey) = np.mean(eye_points, axis=0)
+
+    # get the iris center
+    (ix, iy) = np.mean(iris_points, axis=0)
+
+    delta_x = ix-ex
+    delta_y = iy-ey
+    return delta_x, delta_y
+    
+    
+
 
 
 
@@ -50,7 +79,7 @@ with mp_face_mesh.FaceMesh(
     start_time = time.time()
     frame_count = 0
 
-
+    x_calibration_readings, y_calibration_readings = [], []
     while cap.isOpened():
         success, frame = cap.read()
         if not success:
@@ -67,18 +96,40 @@ with mp_face_mesh.FaceMesh(
         if results is None or results.multi_face_landmarks is None:
             continue
 
-        mesh_points=np.array([np.multiply([p.x, p.y], [img_w, img_h]).astype(int) for p in results.multi_face_landmarks[0].landmark])
 
+        # track gaze
+        mesh_points_normalized = np.array([[p.x, p.y] for p in results.multi_face_landmarks[0].landmark])
+        l_dx, l_dy = get_iris_position(mesh_points_normalized, "left")
+        r_dx, r_dy = get_iris_position(mesh_points_normalized, "right")
+        cursor_dx = (l_dx + r_dx) / 2
+        cursor_dy = (l_dy + r_dy) / 2
+
+        if frame_count < 5:
+            x_calibration_readings.append(cursor_dx)
+            y_calibration_readings.append(cursor_dy)
+
+            pyautogui.moveTo(screen_center[0], screen_center[1])
+
+        elif frame_count == 5:
+            x_calibration = np.mean(x_calibration_readings)
+            y_calibration = np.mean(y_calibration_readings)
+
+        else:
+            cursor_dx -= x_calibration
+            cursor_dy -= y_calibration
+
+            print(f"{cursor_dx:.3f}  -- {cursor_dy:.3f}")
+            pyautogui.moveTo(
+                screen_center[0] + GAIN * screen_center[0]*cursor_dx, 
+                screen_center[1] + GAIN * screen_center[1]*cursor_dy
+            )
+
+        # get landmarks coordinates in pixels
+        mesh_points=np.array([np.multiply([p.x, p.y], [img_w, img_h]).astype(int) for p in results.multi_face_landmarks[0].landmark])
         left_iris, right_iris = mesh_points[LEFT_IRIS], mesh_points[RIGHT_IRIS]
         left_eye, right_eye = mesh_points[LEFT_EYE], mesh_points[RIGHT_EYE]
 
-        # get the iris position "within" the eye
-        left = get_iris_position(left_iris, left_eye)
-        right = get_iris_position(right_iris, right_eye)
 
-
-        # left_position, right_position = get_iris_position(left_iris, left_eye), get_iris_position(right_iris, right_eye)
-        # print(f"Left position {left_position} - Right position {right_position}")
 
         # draw eyes and irises
         for color, points in zip(((0,0,255), (0,255,0)), ((left_iris, right_iris), (left_eye, right_eye))):
@@ -94,6 +145,9 @@ with mp_face_mesh.FaceMesh(
             cv2.circle(frame, tuple(mesh_points[points.inner]), 2, (0, 0, 255), -1)
             cv2.circle(frame, tuple(mesh_points[points.outer]), 2, (0, 255, 0), -1)
 
+        # draw pupils
+        for points in (LEFT_PUPIL, RIGHT_PUPIL):
+            cv2.circle(frame, tuple(mesh_points[points]), 4, (255, 0, 0), -1)
 
 
         # Calculate the FPS and display it on the output image
@@ -103,9 +157,13 @@ with mp_face_mesh.FaceMesh(
         cv2.putText(frame, f"FPS: {fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
         # Flip the image horizontally for a selfie-view display.
-        cv2.imshow('MediaPipe Face Detection', cv2.flip(frame, 1))
+        cv2.imshow('MediaPipe Face Detection', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+        elif cv2.waitKey(1) & 0xFF == ord('a'):
+            GAIN += 25
+            
+
 
 
 cap.release()

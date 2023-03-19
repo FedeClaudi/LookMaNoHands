@@ -1,2 +1,0 @@
-# LooMaNoHands
-Handsfree control

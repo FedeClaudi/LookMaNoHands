@@ -1,5 +1,0 @@
-- [ ] Train a model for face detection: https://juliaimages.org/ImageFeatures.jl/stable/tutorials/object_detection/
-- [ ] Train a model for eye detection (using face detection as a starting point)
-- [ ] write code to get eye position within the face
-- [ ] setup pycall to move/click mouse
-- [ ] link it all together
