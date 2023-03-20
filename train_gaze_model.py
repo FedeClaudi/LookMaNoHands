@@ -17,8 +17,10 @@ SELECTED = [*LEFT, *RIGHT, *FACE]
 N = 2*(len(SELECTED))
 
 SAVE_DATA = False
-FIT_MODEL = False
-T = 1000
+FIT_MODEL = True
+RUN = False
+
+T = 100
 snaps_per_frame = 3
 
 X = np.zeros((snaps_per_frame * T, N))
@@ -33,16 +35,34 @@ if SAVE_DATA:
     screen_w, screen_h = pyautogui.size()
 
     # select N random points on the screen
-    x_pts = np.random.randint(25, screen_w-25, size=(T-4))
-    y_pts = np.random.randint(25, screen_h-25, size=(T-4))
-    pts = np.vstack((x_pts, y_pts)).T
+    # x_pts = np.random.randint(5, screen_w-5, size=(T-4))
+    # y_pts = np.random.randint(5, screen_h-5, size=(T-4))
+    # pts = np.vstack((x_pts, y_pts)).T
 
     # add 4 corners to points
-    corners =  np.array([[50, 50], [50, screen_h - 50], [screen_w - 50, screen_h - 50], [screen_w - 50, 50]])
-    pts = np.vstack((pts, corners))
+    delta = 10
+    # corners =  np.array([[delta, delta], [delta, screen_h - delta], [screen_w - delta, screen_h - delta], [screen_w - delta, delta]])
+    # pts = np.vstack((pts, corners))
+
+    # make an array with 4 corners and midpoints between corners
+    corners = np.array([
+        [delta, delta],
+        [delta, screen_h/2],
+        [delta, screen_h - delta],
+        [screen_w/2, screen_h - delta],
+        [screen_w - delta, screen_h - delta],
+        [screen_w - delta, screen_h/2],
+        [screen_w - delta, delta],
+        [screen_w/2, delta],
+        [screen_w/2, screen_h/2]
+    ])
+
+    # make pts as 10 repetitions of corners
+    pts = np.tile(corners, (4, 1))
 
     # center cursor
     pyautogui.moveTo(screen_w / 2, screen_h / 2, duration=0, _pause=False)
+    time.sleep(0.5)
 
     
 
@@ -63,29 +83,33 @@ if SAVE_DATA:
             j += 1
 
         time.sleep(.5)
+
+
+    Xold = np.load("trainig_data_X.npy")
+    Yold = np.load("trainig_data_Y.npy")
+
+    # combine old and new data
+    X = np.vstack((Xold, X))
+    Y = np.vstack((Yold, Y))
+
+    # save
     np.save("trainig_data_X.npy", X)
     np.save("trainig_data_Y.npy", Y)
 
 else:
     X = np.load("trainig_data_X.npy")
     Y = np.load("trainig_data_Y.npy")
+    print(f"Loaded {X.shape[0]} samples.")
 
 # ---------------------------------------------------------------------------- #
 #                                  TRAIN MODEL                                 #
 # ---------------------------------------------------------------------------- #
 
 
-
-# # Initialize a random forest regressor with 100 trees
-# # rf = RandomForestRegressor(n_estimators=100, random_state=42)
-# model = SVR()
-
-# # Fit the model to the training data
-# model.fit(X, Y)
-
 if FIT_MODEL:
     model = tf.keras.Sequential([
-        tf.keras.layers.Dense(64, activation='relu', input_shape=(X.shape[1],)),
+        tf.keras.layers.Dense(256, activation='relu', input_shape=(X.shape[1],)),
+        tf.keras.layers.Dense(128, activation='relu'),
         tf.keras.layers.Dense(32, activation='relu'),
         tf.keras.layers.Dense(2)
     ])
@@ -103,13 +127,13 @@ if FIT_MODEL:
         elif epoch < 1250:
             lr = 0.001
         else:
-            lr = 0.0001
+            lr = 0.0005
         return lr
 
     # Create a callback that applies the learning rate schedule
     lr_callback = tf.keras.callbacks.LearningRateScheduler(lr_schedule)
 
-    model.fit(X, Y, epochs=3500, batch_size=64, callbacks=[lr_callback])
+    model.fit(X, Y, epochs=3_000, batch_size=256, callbacks=[lr_callback])
 
     # Save the model to a file
     model.save("my_mlp_model.h5")
@@ -122,6 +146,8 @@ else:
 # ---------------------------------------------------------------------------- #
 print("evaluation mode")
 for i in range(1000):
+    if not RUN:
+        break
     frame = tracker()
     x = tracker.mesh_points_normalized[SELECTED].ravel()
     y = model.predict(x.reshape(1, -1), verbose=False)

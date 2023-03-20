@@ -9,10 +9,10 @@ def main():
     cv2.moveWindow('frame', 100, 0)
 
     tracker = vision.Tracker()
-    controller = control.Controller(gain=100_000, T=3)
+    controller = control.Controller()
     while True:
         frame = tracker()
-        controller.apply_controls(tracker)
+        controller(tracker)
 
         cv2.imshow('frame', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
