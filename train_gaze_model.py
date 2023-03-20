@@ -6,15 +6,12 @@ import tensorflow as tf
 
 import vision
 
-
-LEFT = [474,475, 476, 477, 473, 362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385,384, 398]
-RIGHT = [469, 470, 471, 472, 468, 33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161 , 246]
-FACE = [227, 116, 137, 123, 345, 346, 280, 352, 208, 199, 428]
-
-SELECTED = [*LEFT, *RIGHT, *FACE]
+tracker = vision.Tracker()
 
 
-N = 2*(len(SELECTED))
+
+
+N = 2*(len(tracker.indices))
 
 SAVE_DATA = False
 FIT_MODEL = True
@@ -25,7 +22,6 @@ snaps_per_frame = 3
 
 X = np.zeros((snaps_per_frame * T, N))
 Y = np.zeros((snaps_per_frame * T, 2))
-tracker = vision.Tracker()
 
 
 # ---------------------------------------------------------------------------- #
@@ -79,7 +75,7 @@ if SAVE_DATA:
             Y[j, :] = np.array([x, y])
 
             tracker()
-            X[j, :] = tracker.mesh_points_normalized[SELECTED].ravel()
+            X[j, :] = tracker.mesh_points_normalized[tracker.indices].ravel()
             j += 1
 
         time.sleep(.5)
@@ -125,15 +121,18 @@ if FIT_MODEL:
         elif epoch < 500:
             lr = 0.005
         elif epoch < 1250:
+            lr = 0.0025
+        elif epoch < 5000:
             lr = 0.001
-        else:
+        else:    
             lr = 0.0005
+
         return lr
 
     # Create a callback that applies the learning rate schedule
     lr_callback = tf.keras.callbacks.LearningRateScheduler(lr_schedule)
 
-    model.fit(X, Y, epochs=3_000, batch_size=256, callbacks=[lr_callback])
+    model.fit(X, Y, epochs=10_000, batch_size=256, callbacks=[lr_callback], use_multiprocessing=True, workers=4)
 
     # Save the model to a file
     model.save("my_mlp_model.h5")
@@ -149,7 +148,7 @@ for i in range(1000):
     if not RUN:
         break
     frame = tracker()
-    x = tracker.mesh_points_normalized[SELECTED].ravel()
+    x = tracker.mesh_points_normalized[tracker.indices].ravel()
     y = model.predict(x.reshape(1, -1), verbose=False)
     pyautogui.moveTo(y[0, 0], y[0, 1], duration=0, _pause=False)
 
