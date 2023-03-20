@@ -2,7 +2,9 @@ import mediapipe as mp
 import cv2
 import numpy as np
 import time
-from collections import namedtuple
+from collections import namedtuple, deque
+import tensorflow as tf
+import pyautogui
 
 mp_face_mesh = mp.solutions.face_mesh
 
@@ -12,21 +14,17 @@ _eye_corners = namedtuple('eye_corners', 'inner outer ')
 class Tracker:
     LEFT_IRIS = [474,475, 476, 477]
     RIGHT_IRIS = [469, 470, 471, 472]
-
     RIGHT_PUPIL = 473
     LEFT_PUPIL = 468
 
     N_LANDMARKS = 478
 
-    # Left eye indices list
     LEFT_EYE =[ 362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385,384, 398 ]
-    # Right eye indices list
     RIGHT_EYE=[ 33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161 , 246 ]
 
-    
-    LEFT_CORNERS = _eye_corners(362, 263)
-    RIGHT_CORNERS = _eye_corners(133, 33)
-
+    LEFT = [474,475, 476, 477, 473, 362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385,384, 398]
+    RIGHT = [469, 470, 471, 472, 468, 33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161 , 246]
+    FACE = [227, 116, 137, 123, 345, 346, 280, 352, 208, 199, 428]
 
     def __init__(self):
         self.face_mesh = mp_face_mesh.FaceMesh(
@@ -43,6 +41,11 @@ class Tracker:
 
         ret, frame = self.cap.read()
         self.img_h, self.img_w, _ = frame.shape
+
+        self.model = tf.keras.models.load_model("my_mlp_model.h5")
+        self.indices = [*self.LEFT, *self.RIGHT, *self.FACE]
+
+        self.x, self.y = deque(maxlen=3), deque(maxlen=3)
 
     def snap(self):
         ret, frame = self.cap.read()
@@ -93,11 +96,6 @@ class Tracker:
         for i in range(self.N_LANDMARKS):
             cv2.circle(frame, tuple(self.mesh_points[i]), 1, (255, 0, 0), -1)
 
-
-        # draw a line between the inner/outer points of each eye
-        # for points in (self.LEFT_CORNERS, self.RIGHT_CORNERS):
-        #     cv2.line(frame, tuple(self.mesh_points[points.inner]), tuple(self.mesh_points[points.outer]), (0, 255, 0), 2)
-        
         # draw eyes and irises
         for color, points in zip(((0,0,255), (0,255,0)), ((left_iris, right_iris), (left_eye, right_eye))):
             for point in points:
@@ -116,6 +114,16 @@ class Tracker:
         frame = self.snap()
         self.get_face_mesh(frame)
         self.draw(frame)
+
+        # move cursor
+        x = self.mesh_points_normalized[self.indices].ravel()
+        y = self.model.predict(x.reshape(1, -1), verbose=False)
+
+        self.x.append(y[0, 0])
+        self.y.append(y[0, 1])
+
+        if self.frame_count > 3:
+            pyautogui.moveTo(np.mean(self.x), np.mean(self.y), duration=0, _pause=False)
 
         return frame
 
