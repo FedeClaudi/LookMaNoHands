@@ -7,21 +7,18 @@ import tensorflow as tf
 import vision
 
 tracker = vision.Tracker()
+tracker(control=False)
+features = tracker.extract_features() 
 
 
-
-
-N = 2*(len(tracker.indices))
 
 SAVE_DATA = False
 FIT_MODEL = True
 RUN = False
 
-T = 100
-snaps_per_frame = 3
 
-X = np.zeros((snaps_per_frame * T, N))
-Y = np.zeros((snaps_per_frame * T, 2))
+snaps_per_frame = 3
+N_iters = 10_000
 
 
 # ---------------------------------------------------------------------------- #
@@ -56,26 +53,28 @@ if SAVE_DATA:
     # make pts as 10 repetitions of corners
     pts = np.tile(corners, (4, 1))
 
+    X = np.zeros((snaps_per_frame * pts.shape[0], features.shape[0]))
+    Y = np.zeros((snaps_per_frame * pts.shape[0], 2))
+
     # center cursor
     pyautogui.moveTo(screen_w / 2, screen_h / 2, duration=0, _pause=False)
     time.sleep(0.5)
 
     
-
     # move through each point
     j = 0
     for i, (x, y) in enumerate(pts):
         print(f"Doing {i}")
         pyautogui.moveTo(x, y, duration=.2, _pause=False)
-        
         time.sleep(.5)
+
         print("snap")
         x, y = pyautogui.position()
         for k in range(snaps_per_frame):
             Y[j, :] = np.array([x, y])
 
-            tracker()
-            X[j, :] = tracker.mesh_points_normalized[tracker.indices].ravel()
+            tracker(control=False)
+            X[j, :] = tracker.extract_features()
             j += 1
 
         time.sleep(.5)
@@ -95,7 +94,7 @@ if SAVE_DATA:
 else:
     X = np.load("trainig_data_X.npy")
     Y = np.load("trainig_data_Y.npy")
-    print(f"Loaded {X.shape[0]} samples.")
+    print(f"\n\n\n\nLoaded {X.shape[0]} samples.\n\n\n\n")
 
 # ---------------------------------------------------------------------------- #
 #                                  TRAIN MODEL                                 #
@@ -105,7 +104,7 @@ else:
 if FIT_MODEL:
     model = tf.keras.Sequential([
         tf.keras.layers.Dense(256, activation='relu', input_shape=(X.shape[1],)),
-        tf.keras.layers.Dense(128, activation='relu'),
+        # tf.keras.layers.Dense(128, activation='relu'),
         tf.keras.layers.Dense(32, activation='relu'),
         tf.keras.layers.Dense(2)
     ])
@@ -132,7 +131,7 @@ if FIT_MODEL:
     # Create a callback that applies the learning rate schedule
     lr_callback = tf.keras.callbacks.LearningRateScheduler(lr_schedule)
 
-    model.fit(X, Y, epochs=10_000, batch_size=256, callbacks=[lr_callback], use_multiprocessing=True, workers=4)
+    model.fit(X, Y, epochs=N_iters, batch_size=256, callbacks=[lr_callback], use_multiprocessing=True, workers=4)
 
     # Save the model to a file
     model.save("my_mlp_model.h5")

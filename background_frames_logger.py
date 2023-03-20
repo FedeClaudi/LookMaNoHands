@@ -14,7 +14,7 @@ def on_click(x, y, button, pressed):
         return
     
     # Capture frame from webcam
-    x, y = int(x), int(y)
+    x, y = round(x, 2), round(y, 2)
     ret, frame = cap.read()
     if ret:
         # Save image with timestamp

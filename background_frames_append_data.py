@@ -6,16 +6,21 @@ import cv2
 import vision
 
 tracker = vision.Tracker()
+tracker(control=False)
+features = tracker.extract_features()
 
 img_files = list(glob.glob('data/*.png'))
 
-X_new = np.zeros((len(img_files), 2 * len(tracker.indices)))
-Y_new = np.zeros((len(img_files), 2))
+X_new = np.zeros((len(img_files), features.shape[0]), dtype=np.float32)
+Y_new = np.zeros((len(img_files), 2), dtype=np.float32)
 
 
 # load all images in data
 for i, filename in enumerate(img_files):
+    if i % 25 == 0:
+        print(f"Doing {i+1}/{len(img_files)}")
     x, y = filename.split("_")[2], filename.split("_")[4]
+    x, y = int(float(x)), int(float(y))
 
     # load image with opencv
     img = cv2.imread(filename)
@@ -26,15 +31,19 @@ for i, filename in enumerate(img_files):
 
 
     # store data
-    X_new[i, :] = tracker.mesh_points_normalized[tracker.indices].ravel()
-    Y_new[i, :] = np.array([x, y])
+    X_new[i, :] = tracker.extract_features().astype(np.float32)
+    Y_new[i, :] = np.array([x, y]).astype(np.float32)
 
-# load old data
-X_old = np.load("trainig_data_X.npy")
-Y_old = np.load("trainig_data_Y.npy")
+# # load old data
+# X_old = np.load("trainig_data_X.npy")
+# Y_old = np.load("trainig_data_Y.npy")
 
-# merge and save
-X = np.vstack((X_old, X_new))
-Y = np.vstack((Y_old, Y_new))
+# # merge and save
+# X = np.vstack((X_old, X_new))
+# Y = np.vstack((Y_old, Y_new))
+
+print(f"X shape: {X_new.shape}")
+np.save("trainig_data_X.npy", X_new)
+np.save("trainig_data_Y.npy", Y_new)
 
 print("Done, you can delete the images in the data folder now")
