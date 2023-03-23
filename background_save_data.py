@@ -1,6 +1,7 @@
 import numpy as np
 import glob 
 import cv2
+import os
 
 
 import vision
@@ -9,7 +10,7 @@ tracker = vision.Tracker()
 tracker(control=False)
 features = tracker.extract_features()
 
-img_files = list(glob.glob('data/*.png'))
+img_files = list(glob.glob('accepted/*.png'))
 
 X_new = np.zeros((len(img_files), features.shape[0]), dtype=np.float32)
 Y_new = np.zeros((len(img_files), 2), dtype=np.float32)
@@ -27,8 +28,14 @@ for i, filename in enumerate(img_files):
     img = cv2.flip(img, 1)
 
     # run tracker on image
-    tracker.get_face_mesh(img)
+    for _ in range(5):
+        success = tracker.get_face_mesh(img)
 
+    if not success:
+        print("No face found")
+        # delete image
+        os.remove(filename)
+        continue
 
     # store data
     X_new[i, :] = tracker.extract_features().astype(np.float32)

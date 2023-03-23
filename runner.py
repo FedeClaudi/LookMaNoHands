@@ -2,6 +2,9 @@ import cv2
 import vision
 
 
+# add face pose: https://github.com/Rassibassi/mediapipeDemos/blob/main/head_posture.py
+
+
 
 def main():
     # create window centered on the screen
@@ -11,8 +14,6 @@ def main():
     tracker = vision.Tracker()
     while True:
         frame = tracker()
-
-        frame = cv2.resize(frame, (0, 0), fx=0.75, fy=0.75)
         cv2.imshow('frame', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

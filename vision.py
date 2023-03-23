@@ -7,7 +7,9 @@ import tensorflow as tf
 import pyautogui
 
 mp_face_mesh = mp.solutions.face_mesh
-
+mp_drawing = mp.solutions.drawing_utils
+mp_face_mesh_connections = mp.solutions.face_mesh_connections
+drawing_spec = mp_drawing.DrawingSpec(thickness=1, circle_radius=3)
 
 # adapted from: https://medium.com/mlearning-ai/iris-segmentation-mediapipe-python-a4deb711aae3
 
@@ -55,8 +57,9 @@ class Tracker:
         self.face_mesh = mp_face_mesh.FaceMesh(
             max_num_faces=1,
             refine_landmarks=True,
-            min_detection_confidence=0.6,
-            min_tracking_confidence=0.6
+            min_detection_confidence=0.9,
+            min_tracking_confidence=0.9,
+            static_image_mode=False,
         )
 
         # setup webcam streaming
@@ -72,6 +75,7 @@ class Tracker:
 
         # self.x, self.y = deque(maxlen=3), deque(maxlen=3)
         self.prev_x, self.prev_y = 0, 0
+        self.mesh_history = deque(maxlen=3)
 
     def snap(self):
         ret, frame = self.cap.read()
@@ -83,13 +87,17 @@ class Tracker:
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         # scale frame to speedup
-        results = self.face_mesh.process(frame)
-        
+        results = self.face_mesh.process(frame)        
         if results.multi_face_landmarks is None:
-            return 
-        
-        self.mesh_points_normalized = np.array([[p.x, p.y] for p in results.multi_face_landmarks[0].landmark])
+            return False
+
+        self._mesh = results.multi_face_landmarks[0]
+        mesh_points_normalized = np.array([[p.x, p.y] for p in results.multi_face_landmarks[0].landmark])
+        self.mesh_history.append(mesh_points_normalized)
+        self.mesh_points_normalized = np.mean(self.mesh_history, axis=0)
+
         self.mesh_points = np.array([np.multiply([p.x, p.y], [self.img_w, self.img_h]).astype(int) for p in results.multi_face_landmarks[0].landmark])
+        return True
 
     @property
     def left_eye(self):
@@ -114,31 +122,46 @@ class Tracker:
 
 
     def draw(self, frame):
-        left_iris, right_iris = self.mesh_points[self.LEFT_IRIS], self.mesh_points[self.RIGHT_IRIS]
-        left_eye, right_eye = self.mesh_points[self.LEFT_EYE], self.mesh_points[self.RIGHT_EYE]
+        # left_iris, right_iris = self.mesh_points[self.LEFT_IRIS], self.mesh_points[self.RIGHT_IRIS]
+        # left_eye, right_eye = self.mesh_points[self.LEFT_EYE], self.mesh_points[self.RIGHT_EYE]
     
 
-        # draw every landmark
-        for i in range(self.N_LANDMARKS):
-            cv2.circle(frame, tuple(self.mesh_points[i]), 1, (255, 0, 0), -1)
+        # # draw every landmark
+        # for i in range(self.N_LANDMARKS):
+        #     cv2.circle(frame, tuple(self.mesh_points[i]), 1, (255, 0, 0), -1)
 
-        # draw eyes and irises
-        for color, points in zip(((0,0,255), (0,255,0)), ((left_iris, right_iris), (left_eye, right_eye))):
-            for point in points:
-                cv2.polylines(frame, [point], True, color, 1, cv2.LINE_AA)
+        # # draw eyes and irises
+        # for color, points in zip(((0,0,255), (0,255,0)), ((left_iris, right_iris), (left_eye, right_eye))):
+        #     for point in points:
+        #         cv2.polylines(frame, [point], True, color, 1, cv2.LINE_AA)
 
-        # draw pupils
-        for points in (self.LEFT_PUPIL, self.RIGHT_PUPIL):
-            cv2.circle(frame, tuple(self.mesh_points[points]), 4, (0, 0, 255), -1)
+        # # draw pupils
+        # for points in (self.LEFT_PUPIL, self.RIGHT_PUPIL):
+        #     cv2.circle(frame, tuple(self.mesh_points[points]), 4, (0, 0, 255), -1)
 
-        # Calculate the FPS and display it on the output image
-        cv2.putText(frame, f"FPS: {self.fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        # # Calculate the FPS and display it on the output image
+        # cv2.putText(frame, f"FPS: {self.fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+        # for idxs in (mp.solutions.face_mesh.FACEMESH_CONTOURS, ):
+        #     cv2.circle(frame, tuple(self.mesh_points[idxs]), 4, (0, 5, 255), -1)
+
+        mp_drawing.draw_landmarks(
+            image=frame,
+            landmark_list=self._mesh,
+            connections=mp_face_mesh_connections.FACEMESH_TESSELATION,
+            landmark_drawing_spec=drawing_spec,
+            connection_drawing_spec=drawing_spec,
+        )
+
+
 
     """
     Extract informative features from tracking data.    
     """
     def extract_features(self):
         coords = self.mesh_points_normalized
+        # get the average of the mesh history
+        # coords = np.mean(self.mesh_history, axis=0)
 
 
         left_iris_center = get_center(coords, [*self.LEFT_IRIS, self.LEFT_PUPIL])
@@ -162,19 +185,21 @@ class Tracker:
         right_wh_ratio = right_eye_height/right_eye_width
         face_wh_ratio = (face_right-face_left)/(face_bottom-face_top)
 
-        selected = [*self.LEFT_IRIS, self.LEFT_PUPIL, *self.RIGHT_IRIS, self.RIGHT_PUPIL, *self.LEFT_EYE, *self.RIGHT_EYE]
+        # selected = [*self.LEFT_IRIS, self.LEFT_PUPIL, *self.RIGHT_IRIS, self.RIGHT_PUPIL, *self.LEFT_EYE, *self.RIGHT_EYE]
 
         features = np.hstack((
-            # left_iris_center.ravel(), right_iris_center.ravel(),
-            # left_eye_center.ravel(), right_eye_center.ravel(),
-            # face_center.ravel(), 
-            # face_left, face_right, face_bottom, face_top,
-            # left_eye_width, right_eye_width,
-            # left_eye_height, right_eye_height,
-            # eyes_width_ratio,  
-            # left_wh_ratio, right_wh_ratio, face_wh_ratio,
-            coords[selected].ravel()
+            left_iris_center.ravel(), right_iris_center.ravel(),
+            left_eye_center.ravel(), right_eye_center.ravel(),
+            face_center.ravel(), 
+            face_left, face_right, face_bottom, face_top,
+            left_eye_width, right_eye_width,
+            left_eye_height, right_eye_height,
+            eyes_width_ratio,  
+            left_wh_ratio, right_wh_ratio, face_wh_ratio,
+            # coords[selected].ravel()
         ))
+
+        # features = coords[selected].ravel()
 
         return features
 
@@ -184,17 +209,17 @@ class Tracker:
     def __call__(self, control=True):
         frame = self.snap()
         self.get_face_mesh(frame)
-        self.draw(frame)
 
         if not control:
             return
+
+        self.draw(frame)
 
         # move cursor
         y = self.model.predict(self.extract_features().reshape(1, -1), verbose=False)
 
         new_x, new_y = y[0, 0], y[0, 1]
         # curr_x, curr_y = pyautogui.position()
-        print(new_x, new_y)
 
         # distance
         # dist = np.sqrt((new_x - self.prev_x)**2 + (new_y - self.prev_y)**2)

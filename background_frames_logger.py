@@ -6,8 +6,6 @@ import time
 # Set up video capture from default camera
 cap = cv2.VideoCapture(0)
 
-# Define image counter variable
-img_counter = 0
 
 def on_click(x, y, button, pressed):
     if not pressed:
