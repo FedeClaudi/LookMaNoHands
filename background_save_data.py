@@ -30,6 +30,7 @@ for i, filename in enumerate(img_files):
     # run tracker on image
     for _ in range(5):
         success = tracker.get_face_mesh(img)
+        tracker.get_head_transform()
 
     if not success:
         print("No face found")

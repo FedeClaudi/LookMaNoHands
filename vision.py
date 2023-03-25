@@ -208,11 +208,12 @@ class Tracker:
             left_iris_center.ravel(), right_iris_center.ravel(),
             left_eye_center.ravel(), right_eye_center.ravel(),
             face_center.ravel(), 
-            face_left, face_right, face_bottom, face_top,
-            left_eye_width, right_eye_width,
-            left_eye_height, right_eye_height,
-            eyes_width_ratio,  
-            left_wh_ratio, right_wh_ratio, face_wh_ratio,
+            # self.head_transform.ravel(),
+            # face_left, face_right, face_bottom, face_top,
+            # left_eye_width, right_eye_width,
+            # left_eye_height, right_eye_height,
+            # eyes_width_ratio,  
+            # left_wh_ratio, right_wh_ratio, face_wh_ratio,
             # coords[selected].ravel()
         ))
 
@@ -249,11 +250,6 @@ class Tracker:
         metric_landmarks, pose_transform_mat = get_metric_landmarks(
                     landmarks.copy(), self.pcf
                 )
-
-        image_points = (
-            landmarks[0:2, points_idx].T
-            * np.array([self.img_w, self.img_h])[None, :]
-        )
         self.model_points = metric_landmarks[0:3, points_idx].T
 
         # see here:
@@ -261,6 +257,7 @@ class Tracker:
         pose_transform_mat[1:3, :] = -pose_transform_mat[1:3, :]
         self.mp_rotation_vector, _ = cv2.Rodrigues(pose_transform_mat[:3, :3])
         self.mp_translation_vector = pose_transform_mat[:3, 3, None]
+        self.head_transform = pose_transform_mat
 
 
 
@@ -275,10 +272,9 @@ class Tracker:
         self.draw(frame)
 
         # move cursor
-        # y = self.model.predict(self.extract_features().reshape(1, -1), verbose=False)
-
-        # new_x, new_y = y[0, 0], y[0, 1]
-        # pyautogui.moveTo(new_x, new_y, duration=0.1, _pause=False)
+        y = self.model.predict(self.extract_features().reshape(1, -1), verbose=False)
+        new_x, new_y = y[0, 0], y[0, 1]
+        pyautogui.moveTo(new_x, new_y, duration=0.1, _pause=False)
 
 
         return frame

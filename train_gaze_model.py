@@ -10,7 +10,7 @@ tracker = vision.Tracker()
 tracker(control=False)
 features = tracker.extract_features() 
 
-N_iters = 12_000
+N_iters = 30_000
 
 
 # ---------------------------------------------------------------------------- #
@@ -42,8 +42,10 @@ def lr_schedule(epoch):
         lr = 0.0025
     elif epoch < 8000:
         lr = 0.001
-    else:    
+    elif epoch < 15000:
         lr = 0.0005
+    else:    
+        lr = 0.0001
 
     return lr
 
