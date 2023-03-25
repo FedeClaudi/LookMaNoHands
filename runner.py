@@ -13,7 +13,7 @@ def main():
 
     tracker = vision.Tracker()
     while True:
-        frame = tracker()
+        frame = tracker(control=True)
         cv2.imshow('frame', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

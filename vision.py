@@ -5,11 +5,24 @@ import time
 from collections import namedtuple, deque
 import tensorflow as tf
 import pyautogui
+from face_geometry import PCF, get_metric_landmarks, procrustes_landmark_basis
 
 mp_face_mesh = mp.solutions.face_mesh
 mp_drawing = mp.solutions.drawing_utils
 mp_face_mesh_connections = mp.solutions.face_mesh_connections
-drawing_spec = mp_drawing.DrawingSpec(thickness=1, circle_radius=3)
+
+drawing_spec = dict(
+    face = (mp_drawing.DrawingSpec(thickness=1, circle_radius=1, color=(255, 255, 255)),
+        (mp_face_mesh_connections.FACEMESH_FACE_OVAL, )),
+    eye=(mp_drawing.DrawingSpec(thickness=2, circle_radius=1, color=(0, 0, 255)), 
+        (mp_face_mesh_connections.FACEMESH_LEFT_EYE,
+        mp_face_mesh_connections.FACEMESH_RIGHT_EYE,
+         )),
+    iris=(mp_drawing.DrawingSpec(thickness=2, circle_radius=0, color=(0, 255, 0)), 
+        (mp_face_mesh_connections.FACEMESH_LEFT_IRIS,
+        mp_face_mesh_connections.FACEMESH_RIGHT_IRIS,
+         )),
+)
 
 # adapted from: https://medium.com/mlearning-ai/iris-segmentation-mediapipe-python-a4deb711aae3
 
@@ -26,6 +39,11 @@ def get_length(X, i1, i2):
 
     d = np.sqrt((A[0]-B[0])**2 + (A[1]-B[1])**2)
     return d
+
+points_idx = [33, 263, 61, 291, 199]
+points_idx = points_idx + [key for (key, val) in procrustes_landmark_basis]
+points_idx = list(set(points_idx))
+points_idx.sort()
 
 class Tracker:
     LEFT_IRIS = [474,475, 476, 477]
@@ -69,35 +87,31 @@ class Tracker:
 
         ret, frame = self.cap.read()
         self.img_h, self.img_w, _ = frame.shape
+        
+        # pseudo camera internals
+        focal_length = self.img_w
+        center = (self.img_w / 2, self.img_h / 2)
+        self.camera_matrix = np.array(
+            [[focal_length, 0, center[0]], [0, focal_length, center[1]], [0, 0, 1]],
+            dtype="double",
+        )
+        self.dist_coeff = np.zeros((4, 1))
+        self.pcf = PCF(
+        near=1,
+        far=10000,
+        frame_height=self.img_h,
+        frame_width=self.img_w,
+        fy=self.camera_matrix[1, 1],
+    )
 
+        # gaze tracking model
         self.model = tf.keras.models.load_model("my_mlp_model.h5")
         self.indices = [*self.LEFT, *self.RIGHT, *self.FACE]
 
-        # self.x, self.y = deque(maxlen=3), deque(maxlen=3)
+        # cursor control
         self.prev_x, self.prev_y = 0, 0
         self.mesh_history = deque(maxlen=3)
 
-    def snap(self):
-        ret, frame = self.cap.read()
-        frame = cv2.flip(frame, 1)
-        self.frame_count += 1
-        return frame
-
-    def get_face_mesh(self, frame):
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # scale frame to speedup
-        results = self.face_mesh.process(frame)        
-        if results.multi_face_landmarks is None:
-            return False
-
-        self._mesh = results.multi_face_landmarks[0]
-        mesh_points_normalized = np.array([[p.x, p.y] for p in results.multi_face_landmarks[0].landmark])
-        self.mesh_history.append(mesh_points_normalized)
-        self.mesh_points_normalized = np.mean(self.mesh_history, axis=0)
-
-        self.mesh_points = np.array([np.multiply([p.x, p.y], [self.img_w, self.img_h]).astype(int) for p in results.multi_face_landmarks[0].landmark])
-        return True
 
     @property
     def left_eye(self):
@@ -122,36 +136,39 @@ class Tracker:
 
 
     def draw(self, frame):
-        # left_iris, right_iris = self.mesh_points[self.LEFT_IRIS], self.mesh_points[self.RIGHT_IRIS]
-        # left_eye, right_eye = self.mesh_points[self.LEFT_EYE], self.mesh_points[self.RIGHT_EYE]
-    
+        # Calculate the FPS and display it on the output image
+        cv2.putText(frame, f"FPS: {self.fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-        # # draw every landmark
-        # for i in range(self.N_LANDMARKS):
-        #     cv2.circle(frame, tuple(self.mesh_points[i]), 1, (255, 0, 0), -1)
+        for (spec, idxs) in drawing_spec.values():
+            for idx in idxs:
+                mp_drawing.draw_landmarks(
+                    image=frame,
+                    landmark_list=self._mesh,
+                    connections=idx,
+                    landmark_drawing_spec=None,
+                    connection_drawing_spec=spec,
+                )
 
-        # # draw eyes and irises
-        # for color, points in zip(((0,0,255), (0,255,0)), ((left_iris, right_iris), (left_eye, right_eye))):
-        #     for point in points:
-        #         cv2.polylines(frame, [point], True, color, 1, cv2.LINE_AA)
+        # draw every landmark
+        for i in range(self.N_LANDMARKS):
+            cv2.circle(frame, tuple(self.mesh_points[i]), 1, (255, 255, 255), -1)
 
-        # # draw pupils
-        # for points in (self.LEFT_PUPIL, self.RIGHT_PUPIL):
-        #     cv2.circle(frame, tuple(self.mesh_points[points]), 4, (0, 0, 255), -1)
-
-        # # Calculate the FPS and display it on the output image
-        # cv2.putText(frame, f"FPS: {self.fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
-        # for idxs in (mp.solutions.face_mesh.FACEMESH_CONTOURS, ):
-        #     cv2.circle(frame, tuple(self.mesh_points[idxs]), 4, (0, 5, 255), -1)
-
-        mp_drawing.draw_landmarks(
-            image=frame,
-            landmark_list=self._mesh,
-            connections=mp_face_mesh_connections.FACEMESH_TESSELATION,
-            landmark_drawing_spec=drawing_spec,
-            connection_drawing_spec=drawing_spec,
+        # draw offset nose position for head transform info
+        nose_tip = self.model_points[0]
+        nose_tip_extended = 2.5 * self.model_points[0]
+        (nose_pointer2D, jacobian) = cv2.projectPoints(
+            np.array([nose_tip, nose_tip_extended]),
+            self.mp_rotation_vector,
+            self.mp_translation_vector,
+            self.camera_matrix,
+            self.dist_coeff,
         )
+
+        nose_tip_2D, nose_tip_2D_extended = nose_pointer2D.squeeze().astype(int)
+        cv2.line(
+            frame, nose_tip_2D, nose_tip_2D_extended, (255, 0, 0), 2
+        )
+
 
 
 
@@ -204,36 +221,65 @@ class Tracker:
         return features
 
 
+    def snap(self):
+        ret, frame = self.cap.read()
+        frame = cv2.flip(frame, 1)
+        self.frame_count += 1
+        return frame
+
+    def get_face_mesh(self, frame):
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # scale frame to speedup
+        results = self.face_mesh.process(frame)        
+        if results.multi_face_landmarks is None:
+            return False
+
+        self._mesh = results.multi_face_landmarks[0]
+        self.mesh_points_normalized = np.array([[p.x, p.y] for p in results.multi_face_landmarks[0].landmark])
+        self.mesh_points = np.array([np.multiply([p.x, p.y], [self.img_w, self.img_h]).astype(int) for p in results.multi_face_landmarks[0].landmark])
+        return True
+
+
+    def get_head_transform(self):
+        landmarks = np.array(
+                    [(lm.x, lm.y, lm.z) for lm in self._mesh.landmark]
+                ).T[:, :468]
+        
+        metric_landmarks, pose_transform_mat = get_metric_landmarks(
+                    landmarks.copy(), self.pcf
+                )
+
+        image_points = (
+            landmarks[0:2, points_idx].T
+            * np.array([self.img_w, self.img_h])[None, :]
+        )
+        self.model_points = metric_landmarks[0:3, points_idx].T
+
+        # see here:
+        # https://github.com/google/mediapipe/issues/1379#issuecomment-752534379
+        pose_transform_mat[1:3, :] = -pose_transform_mat[1:3, :]
+        self.mp_rotation_vector, _ = cv2.Rodrigues(pose_transform_mat[:3, :3])
+        self.mp_translation_vector = pose_transform_mat[:3, 3, None]
+
 
 
     def __call__(self, control=True):
         frame = self.snap()
         self.get_face_mesh(frame)
+        self.get_head_transform()
 
         if not control:
-            return
+            return frame
 
         self.draw(frame)
 
         # move cursor
-        y = self.model.predict(self.extract_features().reshape(1, -1), verbose=False)
+        # y = self.model.predict(self.extract_features().reshape(1, -1), verbose=False)
 
-        new_x, new_y = y[0, 0], y[0, 1]
-        # curr_x, curr_y = pyautogui.position()
+        # new_x, new_y = y[0, 0], y[0, 1]
+        # pyautogui.moveTo(new_x, new_y, duration=0.1, _pause=False)
 
-        # distance
-        # dist = np.sqrt((new_x - self.prev_x)**2 + (new_y - self.prev_y)**2)
-
-        # if dist > 100:
-        pyautogui.moveTo(new_x, new_y, duration=0.1, _pause=False)
-            # self.prev_x, self.prev_y = new_x, new_y
-
-
-        # self.x.append(y[0, 0])
-        # self.y.append(y[0, 1])
-
-        # if self.frame_count > 3:
-        #     pyautogui.moveTo(np.mean(self.x), np.mean(self.y), duration=0, _pause=False)
 
         return frame
 
