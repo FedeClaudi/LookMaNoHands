@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import time
 from collections import namedtuple, deque
-import tensorflow as tf
+# import tensorflow as tf
 import pyautogui
 from face_geometry import PCF, get_metric_landmarks, procrustes_landmark_basis
 
@@ -12,7 +12,7 @@ mp_drawing = mp.solutions.drawing_utils
 mp_face_mesh_connections = mp.solutions.face_mesh_connections
 
 drawing_spec = dict(
-    face = (mp_drawing.DrawingSpec(thickness=1, circle_radius=1, color=(255, 255, 255)),
+    face = (mp_drawing.DrawingSpec(thickness=3, circle_radius=1, color=(255, 255, 255)),
         (mp_face_mesh_connections.FACEMESH_FACE_OVAL, )),
     eye=(mp_drawing.DrawingSpec(thickness=2, circle_radius=1, color=(0, 0, 255)), 
         (mp_face_mesh_connections.FACEMESH_LEFT_EYE,
@@ -82,6 +82,14 @@ class Tracker:
 
         # setup webcam streaming
         self.cap = cv2.VideoCapture(0)
+
+        # set video fps to 60
+        self.cap.set(cv2.CAP_PROP_FPS, 60)
+
+        # set video resolution to 1280x720
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
         self.frame_count = -1
         self.start_time = time.time()
 
@@ -105,12 +113,11 @@ class Tracker:
     )
 
         # gaze tracking model
-        self.model = tf.keras.models.load_model("my_mlp_model.h5")
+        # self.model = tf.keras.models.load_model("my_mlp_model.h5")
         self.indices = [*self.LEFT, *self.RIGHT, *self.FACE]
 
         # cursor control
         self.prev_x, self.prev_y = 0, 0
-        self.mesh_history = deque(maxlen=3)
 
 
     @property
@@ -149,9 +156,9 @@ class Tracker:
                     connection_drawing_spec=spec,
                 )
 
-        # draw every landmark
-        for i in range(self.N_LANDMARKS):
-            cv2.circle(frame, tuple(self.mesh_points[i]), 1, (255, 255, 255), -1)
+        # # draw every landmark
+        # for i in range(self.N_LANDMARKS):
+        #     cv2.circle(frame, tuple(self.mesh_points[i]), 1, (255, 255, 255), -1)
 
         # draw offset nose position for head transform info
         nose_tip = self.model_points[0]
@@ -166,7 +173,7 @@ class Tracker:
 
         nose_tip_2D, nose_tip_2D_extended = nose_pointer2D.squeeze().astype(int)
         cv2.line(
-            frame, nose_tip_2D, nose_tip_2D_extended, (255, 0, 0), 2
+            frame, nose_tip_2D, nose_tip_2D_extended, (0, 0, 255), 4
         )
 
 
@@ -177,9 +184,6 @@ class Tracker:
     """
     def extract_features(self):
         coords = self.mesh_points_normalized
-        # get the average of the mesh history
-        # coords = np.mean(self.mesh_history, axis=0)
-
 
         left_iris_center = get_center(coords, [*self.LEFT_IRIS, self.LEFT_PUPIL])
         right_iris_center = get_center(coords, [*self.RIGHT_IRIS, self.RIGHT_PUPIL])
@@ -187,22 +191,21 @@ class Tracker:
         right_eye_center = get_center(coords, self.RIGHT_EYE)
 
         face_center = get_center(coords, None)
-        face_left = np.min(coords[:, 0])
-        face_right = np.max(coords[:, 0])
-        face_bottom = np.min(coords[:, 1])
-        face_top = np.max(coords[:, 1])
+        # face_left = np.min(coords[:, 0])
+        # face_right = np.max(coords[:, 0])
+        # face_bottom = np.min(coords[:, 1])
+        # face_top = np.max(coords[:, 1])
 
-        left_eye_width = get_length(coords, self.LEFT_EYE_INNER, self.LEFT_EYE_OUTER)
-        right_eye_width = get_length(coords, self.RIGHT_EYE_INNER, self.RIGHT_EYE_OUTER)
-        left_eye_height = get_length(coords, self.LEFT_EYE_TOP, self.LEFT_EYE_BOTTOM)
-        right_eye_height = get_length(coords, self.RIGHT_EYE_TOP, self.RIGHT_EYE_BOTTOM)
+        # left_eye_width = get_length(coords, self.LEFT_EYE_INNER, self.LEFT_EYE_OUTER)
+        # right_eye_width = get_length(coords, self.RIGHT_EYE_INNER, self.RIGHT_EYE_OUTER)
+        # left_eye_height = get_length(coords, self.LEFT_EYE_TOP, self.LEFT_EYE_BOTTOM)
+        # right_eye_height = get_length(coords, self.RIGHT_EYE_TOP, self.RIGHT_EYE_BOTTOM)
 
-        eyes_width_ratio = left_eye_width / right_eye_width
-        left_wh_ratio = left_eye_height/left_eye_width
-        right_wh_ratio = right_eye_height/right_eye_width
-        face_wh_ratio = (face_right-face_left)/(face_bottom-face_top)
+        # eyes_width_ratio = left_eye_width / right_eye_width
+        # left_wh_ratio = left_eye_height/left_eye_width
+        # right_wh_ratio = right_eye_height/right_eye_width
+        # face_wh_ratio = (face_right-face_left)/(face_bottom-face_top)
 
-        # selected = [*self.LEFT_IRIS, self.LEFT_PUPIL, *self.RIGHT_IRIS, self.RIGHT_PUPIL, *self.LEFT_EYE, *self.RIGHT_EYE]
 
         features = np.hstack((
             left_iris_center.ravel(), right_iris_center.ravel(),
@@ -265,11 +268,10 @@ class Tracker:
         frame = self.snap()
         self.get_face_mesh(frame)
         self.get_head_transform()
+        self.draw(frame)
 
         if not control:
             return frame
-
-        self.draw(frame)
 
         # move cursor
         y = self.model.predict(self.extract_features().reshape(1, -1), verbose=False)

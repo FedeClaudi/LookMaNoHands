@@ -15,8 +15,9 @@ def main():
     while True:
         frame = tracker(control=True)
         cv2.imshow('frame', frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        # if cv2.waitKey(1) & 0xFF == ord('q'):
+        #     break
+        
     tracker.cap.release()
 
 
