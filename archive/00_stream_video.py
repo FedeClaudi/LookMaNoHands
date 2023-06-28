@@ -52,8 +52,6 @@ while True:
         else:
             fps = 0
 
-        # draw landmarks
-
         # write fps on frame
         frame = cv2.putText(frame, f"FPS: {fps}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         cv2.imshow("frame", frame)

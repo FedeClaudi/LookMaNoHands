@@ -3,3 +3,5 @@ data
 accepted
 
 *.pth
+
+*.task
