@@ -28,13 +28,6 @@ def draw_landmarks_on_image(rgb_image, detection_result):
       landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in face_landmarks
     ])
 
-    # solutions.drawing_utils.draw_landmarks(
-    #     image=annotated_image,
-    #     landmark_list=face_landmarks_proto,
-    #     connections=mp.solutions.face_mesh.FACEMESH_TESSELATION,
-    #     landmark_drawing_spec=None,
-    #     connection_drawing_spec=mp.solutions.drawing_styles
-    #     .get_default_face_mesh_tesselation_style())
     solutions.drawing_utils.draw_landmarks(
         image=annotated_image,
         landmark_list=face_landmarks_proto,
