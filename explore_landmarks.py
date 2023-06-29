@@ -8,24 +8,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 
-BaseOptions = mp.tasks.BaseOptions
-FaceLandmarker = mp.tasks.vision.FaceLandmarker
-FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
-VisionRunningMode = mp.tasks.vision.RunningMode
+import utils
 
 # define a global variable to store the results
 results = None
 
 # Create a face landmarker instance with the live stream mode:
-def print_result(new_result, output_image: mp.Image, timestamp_ms: int):
+def store_data(new_result, output_image: mp.Image, timestamp_ms: int):
     global results
     results = new_result
     
 
-options = FaceLandmarkerOptions(
-    base_options=BaseOptions(model_asset_path="face_landmarker.task"),
-    running_mode=VisionRunningMode.LIVE_STREAM,
-    result_callback=print_result,
+options = utils.FaceLandmarkerOptions(
+    base_options=utils.BaseOptions(model_asset_path="face_landmarker.task"),
+    running_mode=utils.VisionRunningMode.LIVE_STREAM,
+    result_callback=store_data,
     output_face_blendshapes=True,
     output_facial_transformation_matrixes=True,
     )
@@ -36,19 +33,6 @@ def get_landmarks_idxs(connections):
     return list(set(np.vstack(connections).ravel()))
 
 
-LEFT_PUPIL = 468
-RIGHT_PUPIL = 473
-
-NOSE = get_landmarks_idxs(mp.solutions.face_mesh.FACEMESH_NOSE)
-MOUTH = get_landmarks_idxs(mp.solutions.face_mesh.FACEMESH_LIPS)
-OVAL = get_landmarks_idxs(mp.solutions.face_mesh.FACEMESH_FACE_OVAL)
-LEFT_EYE = get_landmarks_idxs(mp.solutions.face_mesh.FACEMESH_LEFT_EYE)
-RIGHT_EYE = get_landmarks_idxs(mp.solutions.face_mesh.FACEMESH_RIGHT_EYE)
-LEFT_IRIS = [*get_landmarks_idxs(mp.solutions.face_mesh.FACEMESH_LEFT_IRIS), LEFT_PUPIL]
-RIGHT_IRIS = [*get_landmarks_idxs(mp.solutions.face_mesh.FACEMESH_RIGHT_IRIS), RIGHT_PUPIL]
-
-face_landmarks = [*NOSE, *MOUTH, *OVAL, *LEFT_EYE, *RIGHT_EYE]
-eyes_landmark = [*LEFT_IRIS, *RIGHT_IRIS]
 
 def draw_connection(ax, m1, m2, **kwargs):
     ax.plot(
@@ -67,11 +51,11 @@ class Head:
         self.center[2] = np.max(coords[:, 2])
 
         # get the center of each face element
-        self.nose = coords[NOSE].mean(axis=0)
-        self.mouth = coords[MOUTH].mean(axis=0)
-        self.oval = coords[OVAL].mean(axis=0)
-        self.left_eye = coords[LEFT_EYE].mean(axis=0)
-        self.right_eye = coords[RIGHT_EYE].mean(axis=0)
+        self.nose = coords[utils.NOSE].mean(axis=0)
+        self.mouth = coords[utils.MOUTH].mean(axis=0)
+        self.oval = coords[utils.OVAL].mean(axis=0)
+        self.left_eye = coords[utils.LEFT_EYE].mean(axis=0)
+        self.right_eye = coords[utils.RIGHT_EYE].mean(axis=0)
 
     def draw(self, ax):
         ax.scatter(self.center[0], self.center[1], self.center[2], c='k', alpha=1, s=20)
@@ -95,7 +79,7 @@ ax = fig.add_subplot(111, projection='3d', xlim=(0, 1), ylim=(0, 1), zlim=(0, 1)
 
 plt.ion()
 
-with FaceLandmarker.create_from_options(options) as landmarker:
+with utils.FaceLandmarker.create_from_options(options) as landmarker:
 
     # Set up video capture from default camera
     cap = cv2.VideoCapture(0)
@@ -132,8 +116,8 @@ with FaceLandmarker.create_from_options(options) as landmarker:
 
             ax.clear()
             ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], c='b', s=1)
-            ax.scatter(coords[eyes_landmark, 0], coords[eyes_landmark, 1], coords[eyes_landmark, 2], c='k', alpha=1, s=10)
-            ax.scatter(coords[face_landmarks, 0], coords[face_landmarks, 1], coords[face_landmarks, 2], c='r', alpha=0.5, s=8)
+            ax.scatter(coords[utils.eyes_landmark, 0], coords[utils.eyes_landmark, 1], coords[utils.eyes_landmark, 2], c='k', alpha=1, s=10)
+            ax.scatter(coords[utils.FaceLandmarkerOptionsface_landmarks, 0], coords[utils.FaceLandmarkerOptionsface_landmarks, 1], coords[utils.FaceLandmarkerOptionsface_landmarks, 2], c='r', alpha=0.5, s=8)
             
 
             # scatter a point at each corner of a qube going from the origin to (1, 1, 1)
@@ -141,19 +125,8 @@ with FaceLandmarker.create_from_options(options) as landmarker:
 
             head = Head(coords)
             head.draw(ax)
-
-
-            # # apply transformation matrix
-            # if len(results.facial_transformation_matrixes) == 0:
-            #     continue
-            # X = results.facial_transformation_matrixes[0][:3, :3]
-            # new_coords = (X.T @ coords.T).T
-            # ax.scatter(new_coords[:, 0], new_coords[:, 1], new_coords[:, 2], c='g')
-
-
             plt.draw()
             plt.pause(0.001)
-
 
 
 plt.ioff()
