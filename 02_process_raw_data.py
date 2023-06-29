@@ -92,6 +92,13 @@ for video_file in video_files:
 
         # save data as csv
         df = pd.DataFrame(data)
+
+        # interpolate missing values
+        df = df.interpolate(method="linear", limit_direction="both")
+
+        # smooth
+        df = df.rolling(window=5, min_periods=1).mean()
+
         df.to_csv(save_path, index=False)
 
 

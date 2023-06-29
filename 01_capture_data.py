@@ -25,6 +25,7 @@ out = cv2.VideoWriter(f'./data/raw/{timestamp}_video.avi', fourcc, 60.0, (640, 4
 # stream
 cursor_pos = []
 print("Starting")
+print("="*250)
 while True:
     # Capture frame from webcam
     ret, frame = cap.read()
@@ -43,9 +44,12 @@ while True:
         cursor_pos.append(mouse.Controller().position)
 
     # if 70s elapsed, break
-    if time.time() - start_time > 40:
+    if time.time() - start_time > 70:
         break
+
 print("Finished, saving")
+print("="*250)
+
 # cleanuop
 cap.release()
 cv2.destroyAllWindows()

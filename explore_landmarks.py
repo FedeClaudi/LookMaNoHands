@@ -117,7 +117,7 @@ with utils.FaceLandmarker.create_from_options(options) as landmarker:
             ax.clear()
             ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2], c='b', s=1)
             ax.scatter(coords[utils.eyes_landmark, 0], coords[utils.eyes_landmark, 1], coords[utils.eyes_landmark, 2], c='k', alpha=1, s=10)
-            ax.scatter(coords[utils.FaceLandmarkerOptionsface_landmarks, 0], coords[utils.FaceLandmarkerOptionsface_landmarks, 1], coords[utils.FaceLandmarkerOptionsface_landmarks, 2], c='r', alpha=0.5, s=8)
+            ax.scatter(coords[utils.face_landmarks, 0], coords[utils.face_landmarks, 1], coords[utils.face_landmarks, 2], c='r', alpha=0.5, s=8)
             
 
             # scatter a point at each corner of a qube going from the origin to (1, 1, 1)

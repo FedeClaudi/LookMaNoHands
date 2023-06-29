@@ -18,6 +18,7 @@ import model
 
 # define a global variable to store the results
 results = None
+model_type="MLP"
 
 # Create a face landmarker instance with the live stream mode:
 def store_results(new_result: utils.FaceLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
@@ -34,11 +35,17 @@ options = utils.FaceLandmarkerOptions(
     )
 
 # load model
-rnn = model.pytorchLSTM(24, 128, 2)
-rnn.load_state_dict(torch.load("models/model.pt"))
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-rnn.to(device)
 
+if model_type == "MLP":
+    network = model.MLP(24, 2)
+    network.load_state_dict(torch.load("models/mlp.pt"))
+else:
+    network = model.LSTM(24, 128, 2)
+    network.load_state_dict(torch.load("models/rnn.pt"))
+
+network.eval()
+network.to(device)
 
 with utils.FaceLandmarker.create_from_options(options) as landmarker:
     # Set up video capture from default camera
@@ -92,13 +99,19 @@ with utils.FaceLandmarker.create_from_options(options) as landmarker:
             # convert to tensor
             features = torch.from_numpy(features).float().to(device)
 
-            output, hidden = rnn(features.reshape(1, -1), hidden=hidden)
+            if model_type == "MLP":
+                output = network(features.reshape(1, -1))
+            else:
+                output, hidden = network(features.reshape(1, -1), hidden=hidden)
 
-            x, y = output.ravel().detach().numpy()
+            x, y = output.ravel().detach().cpu().numpy().astype(int)
+            print(f"X: {x}, Y: {y}")
             pyautogui.moveTo(x, y, duration=0.0, _pause=False)
 
 
         # show frame
+        # rescale to 3x
+        frame = cv2.resize(frame, (0, 0), fx=3, fy=3)
         cv2.imshow("frame", frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
