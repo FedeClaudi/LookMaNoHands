@@ -7,7 +7,10 @@ import cv2
 import numpy as np
 import pandas as pd
 
-import utils
+import archive.utils as utils
+
+
+MOUSE_COORDINATES_CORRECTION_FACTOR = 1.5  # cursor position is off by this factor compared to screen position
 
 
 # Create a face landmarker instance with the video mode:
@@ -34,10 +37,10 @@ for video_file in video_files:
             "./data", "processed", video_file.split("\\")[-1].replace("video.avi", ".csv")
         )
     
-    # skip if already processed
-    if osp.isfile(save_path):
-        print(f"Skipping {video_file}")
-        continue
+    # # skip if already processed
+    # if osp.isfile(save_path):
+    #     print(f"Skipping {video_file}")
+    #     continue
 
     with utils.FaceLandmarker.create_from_options(options) as landmarker:
     # The landmarker is initialized. Use it here.
@@ -56,7 +59,7 @@ for video_file in video_files:
             cursor_x = [],
             cursor_y = [],
         )
-        for i in np.arange(24):
+        for i in np.arange(utils.N_FEATURES):
             data[f"feature_{i}"] = []
 
 
@@ -87,8 +90,8 @@ for video_file in video_files:
         assert len(cursor_data) == len(data["feature_0"])
 
         # add cursor data to data
-        data["cursor_x"] = cursor_data[:, 0]
-        data["cursor_y"] = cursor_data[:, 1]
+        data["cursor_x"] = cursor_data[:, 0] * MOUSE_COORDINATES_CORRECTION_FACTOR
+        data["cursor_y"] = cursor_data[:, 1] * MOUSE_COORDINATES_CORRECTION_FACTOR
 
         # save data as csv
         df = pd.DataFrame(data)

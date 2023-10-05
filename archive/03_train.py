@@ -9,7 +9,7 @@ import model
 
 hidden_size = 256
 lr = 1e-4
-num_epochs = 50_000
+num_epochs = 400_000
 
 # Set device
 if not torch.cuda.is_available():
@@ -53,7 +53,7 @@ for epoch in range(num_epochs):
         optimizer.step()
         epoch_loss += loss.item()
         
-    if epoch % 100 == 0 or epoch == 0:
+    if epoch % int(num_epochs/20) == 0 or epoch == 0:
         print(f'Epoch [{epoch}/{num_epochs}],  Loss: {epoch_loss:.4f}')
 
 # Save the trained rnn

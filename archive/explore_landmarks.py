@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 
-import utils
+import archive.utils as utils
 
 # define a global variable to store the results
 results = None

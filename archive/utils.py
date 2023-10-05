@@ -4,6 +4,8 @@ import numpy as np
 from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
 
+N_FEATURES = 15
+
 BaseOptions = mp.tasks.BaseOptions
 FaceLandmarker = mp.tasks.vision.FaceLandmarker
 FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
@@ -49,7 +51,6 @@ def extract_features(coords):
     coords -= center
 
     # get the position of the eyes, mouth and nose
-    mouth = coords[MOUTH].mean(axis=0)
     nose = coords[NOSE].mean(axis=0)
     left_eye = coords[LEFT_EYE].mean(axis=0)
     right_eye = coords[RIGHT_EYE].mean(axis=0)
@@ -60,7 +61,7 @@ def extract_features(coords):
 
     # stack it into a vector
     features = np.array(
-        [*mouth, *nose, *left_eye, *right_eye, *left_iris, *right_iris, *left_pupil, *right_pupil]
+        [*nose, *left_eye, *right_eye, *left_iris, *right_iris]
     )
     return features
 
